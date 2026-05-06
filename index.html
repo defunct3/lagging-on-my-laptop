@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RouteCast - Weather-Aware Route Planner</title>
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+    
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+    <!-- Landing Page Container -->
+    <div id="landing-view">
+        <!-- Header -->
+        <header>
+            <div class="logo">
+                <i class="fa-solid fa-route"></i> RouteCast
+            </div>
+            <nav>
+                <a href="#landing-1" class="nav-link active"><i class="fa-solid fa-house"></i> Home</a>
+                <a href="#landing-2" class="nav-link"><i class="fa-solid fa-circle-info"></i> About</a>
+            </nav>
+            <div class="auth-buttons">
+                <button id="nav-signin" class="btn btn-outline">Sign In</button>
+            </div>
+        </header>
+
+        <!-- Landing 1: Hero Section -->
+        <section id="landing-1" class="landing-section">
+            <div class="hero-content">
+                <h1>Navigate Smarter with Weather Intelligence</h1>
+                <p>Find the best route for your commute tailored to real-time and forecasted weather conditions in Manila.</p>
+                <button id="hero-get-started" class="btn btn-primary btn-large">Get Started</button>
+            </div>
+            <div class="hero-graphics">
+                <div class="glass-card mockup-card">
+                    <div class="mockup-header">
+                        <i class="fa-solid fa-cloud-sun"></i> Today's Forecast
+                    </div>
+                    <div class="mockup-body">
+                        <h2>32°C</h2>
+                        <p>Partly Cloudy</p>
+                        <p class="small-text">Expect light rain on EDSA by 5 PM.</p>
+                    </div>
+                </div>
+            </div>
+            <a href="#landing-2" class="scroll-down-indicator">
+                <i class="fa-solid fa-chevron-down"></i>
+            </a>
+        </section>
+
+        <!-- Landing 2: Features Section -->
+        <section id="landing-2" class="landing-section">
+            <div class="features-content">
+                <h2>Plan with Confidence</h2>
+                <div class="features-grid">
+                    <div class="feature-card glass-card">
+                        <i class="fa-solid fa-map-location-dot"></i>
+                        <h3>Google Routes Integration</h3>
+                        <p>Powered by the best-in-class routing engine for optimal travel times.</p>
+                    </div>
+                    <div class="feature-card glass-card">
+                        <i class="fa-solid fa-temperature-half"></i>
+                        <h3>Open-Meteo Data</h3>
+                        <p>Accurate hourly weather forecasts to keep you dry and safe.</p>
+                    </div>
+                </div>
+                <div class="cta-container">
+                    <button id="calc-best-route" class="btn btn-primary btn-large">Calculate my best route</button>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <!-- Main App Container (Initially Hidden) -->
+    <div id="app-view" class="hidden">
+        <!-- Map Background -->
+        <div id="map"></div>
+        
+        <!-- App Header Overlay -->
+        <div class="app-header">
+            <div class="logo logo-dark">
+                <i class="fa-solid fa-route"></i> RouteCast
+            </div>
+            <div class="hamburger-menu">
+                <button id="menu-toggle" class="btn-icon"><i class="fa-solid fa-bars"></i></button>
+                <div id="dropdown-menu" class="dropdown hidden">
+                    <button id="logout-btn" class="dropdown-item"><i class="fa-solid fa-right-from-bracket"></i> Logout</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- App UI Elements Overlay -->
+        <div class="app-ui-container">
+            <!-- Weather Widget -->
+            <div class="weather-widget glass-card">
+                <div class="weather-current">
+                    <div class="weather-icon">
+                        <i class="fa-solid fa-cloud-showers-heavy"></i>
+                    </div>
+                    <div class="weather-details">
+                        <h3 id="current-temp">28°C</h3>
+                        <p id="current-desc">Heavy Rain</p>
+                        <span class="location"><i class="fa-solid fa-location-dot"></i> Manila</span>
+                    </div>
+                </div>
+                <hr>
+                <div class="weather-forecast">
+                    <div class="forecast-item">
+                        <span>Tomorrow</span>
+                        <i class="fa-solid fa-cloud-sun"></i>
+                        <span>31°C</span>
+                    </div>
+                    <div class="forecast-item">
+                        <span>Wed</span>
+                        <i class="fa-solid fa-sun"></i>
+                        <span>33°C</span>
+                    </div>
+                    <div class="forecast-item">
+                        <span>Thu</span>
+                        <i class="fa-solid fa-cloud-bolt"></i>
+                        <span>29°C</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Routing Input Square -->
+            <div class="routing-widget glass-card">
+                <h3>Find Best Route</h3>
+                <div class="input-group">
+                    <i class="fa-solid fa-circle-dot start-icon"></i>
+                    <input type="text" id="start-location" placeholder="Starting Location" value="Quezon City">
+                </div>
+                <div class="input-divider">
+                    <i class="fa-solid fa-ellipsis-vertical"></i>
+                </div>
+                <div class="input-group">
+                    <i class="fa-solid fa-location-dot dest-icon"></i>
+                    <input type="text" id="end-location" placeholder="Destination" value="Makati City">
+                </div>
+                <button id="find-route-btn" class="btn btn-primary btn-full">Get Route</button>
+                
+                <div id="route-result" class="route-result hidden">
+                    <div class="route-time">
+                        <i class="fa-solid fa-car"></i> <span>45 mins</span>
+                    </div>
+                    <div class="route-warning">
+                        <i class="fa-solid fa-triangle-exclamation"></i> <span>Rain expected on route in 20 mins. Drive safely.</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Sign In / Sign Up Modal -->
+    <div id="auth-modal" class="modal-overlay hidden">
+        <div class="modal-content glass-card">
+            <button id="close-modal" class="btn-icon close-btn"><i class="fa-solid fa-xmark"></i></button>
+            <div class="modal-header">
+                <h2 id="modal-title">Welcome Back</h2>
+            </div>
+            <form id="auth-form">
+                <div class="form-group">
+                    <label for="email">Email</label>
+                    <input type="email" id="email" placeholder="name@example.com" required>
+                </div>
+                <div class="form-group">
+                    <label for="password">Password</label>
+                    <input type="password" id="password" placeholder="••••••••" required>
+                </div>
+                <div class="form-actions">
+                    <button type="button" id="forgot-password-btn" class="btn-text">Forgot password?</button>
+                </div>
+                <button type="submit" class="btn btn-primary btn-full">Sign In</button>
+                <div class="modal-footer">
+                    <p>Don't have an account? <button type="button" id="toggle-auth-mode" class="btn-text highlight">Sign Up</button></p>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    
+    <!-- Custom Logic -->
+    <script src="script.js"></script>
+</body>
+</html>
