@@ -1,6 +1,7 @@
 document.addEventListener('DOMContentLoaded', () => {
     // === Configuration ===
-    const API_BASE_URL = 'http://commute-backend-env.eba-wp2aijm3.us-east-1.elasticbeanstalk.com';
+    // Empty string = relative URL; Vercel rewrites /api/* → AWS backend (avoids mixed-content block)
+    const API_BASE_URL = '';
 
     // === DOM Elements ===
     
