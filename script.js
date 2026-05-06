@@ -4,11 +4,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const API_BASE_URL = '';
 
     // === DOM Elements ===
-    
+
     // Views
     const landingView = document.getElementById('landing-view');
     const appView = document.getElementById('app-view');
-    
+
     // Auth Modal
     const authModal = document.getElementById('auth-modal');
     const navSigninBtn = document.getElementById('nav-signin');
@@ -17,70 +17,71 @@ document.addEventListener('DOMContentLoaded', () => {
     const toggleAuthModeBtn = document.getElementById('toggle-auth-mode');
     const modalTitle = document.getElementById('modal-title');
     const authForm = document.getElementById('auth-form');
-    
+
     // App Navigation
     const calcBestRouteBtn = document.getElementById('calc-best-route');
     const menuToggleBtn = document.getElementById('menu-toggle');
     const dropdownMenu = document.getElementById('dropdown-menu');
     const logoutBtn = document.getElementById('logout-btn');
-    
-    // Routing functionality
+
+    // Routing
     const findRouteBtn = document.getElementById('find-route-btn');
     const routeResult = document.getElementById('route-result');
     const startLocationInput = document.getElementById('start-location');
     const endLocationInput = document.getElementById('end-location');
 
     // Weather widget
+    const weatherIconEl = document.getElementById('weather-icon');
     const currentTempEl = document.getElementById('current-temp');
     const currentDescEl = document.getElementById('current-desc');
-    
-    // Header links
+    const feelsLikeEl = document.getElementById('feels-like');
+    const rainChanceEl = document.getElementById('rain-chance');
+    const precipMmEl = document.getElementById('precip-mm');
+    const policyBadgeEl = document.getElementById('policy-badge');
+
+    // Route result elements
+    const routeModeIconEl = document.getElementById('route-mode-icon');
+    const routeDurationEl = document.getElementById('route-duration');
+    const routeDistanceEl = document.getElementById('route-distance');
+    const routeSummaryEl = document.getElementById('route-summary');
+    const routeReasonEl = document.getElementById('route-reason');
+    const routeWarningEl = document.getElementById('route-warning');
+    const alternativesPanel = document.getElementById('alternatives-panel');
+    const alternativesList = document.getElementById('alternatives-list');
+
+    // Mode selector
+    const modeSelector = document.getElementById('mode-selector');
+
+    // Nav links
     const navLinks = document.querySelectorAll('.nav-link');
 
-    // State
+    // === State ===
     let mapInitialized = false;
     let map;
     let routeLayerGroup;
     let isSignUpMode = false;
     let isMenuOpen = false;
+    let lastApiResponse = null; // Store last response to allow alt-route switching
 
-    // === Event Listeners ===
-
-    // Smooth Scrolling & Active State for Nav Links
+    // === Nav / Scroll ===
     navLinks.forEach(link => {
         link.addEventListener('click', function(e) {
             e.preventDefault();
             navLinks.forEach(l => l.classList.remove('active'));
             this.classList.add('active');
-            
-            const targetId = this.getAttribute('href');
-            document.querySelector(targetId).scrollIntoView({
-                behavior: 'smooth'
-            });
+            document.querySelector(this.getAttribute('href')).scrollIntoView({ behavior: 'smooth' });
         });
     });
 
-    // Modal Logic
-    const openModal = () => {
-        authModal.classList.remove('hidden');
-    };
-
-    const closeModal = () => {
-        authModal.classList.add('hidden');
-    };
+    // === Modal ===
+    const openModal = () => authModal.classList.remove('hidden');
+    const closeModal = () => authModal.classList.add('hidden');
 
     navSigninBtn.addEventListener('click', openModal);
     heroGetStartedBtn.addEventListener('click', openModal);
     closeModalBtn.addEventListener('click', closeModal);
+    authModal.addEventListener('click', (e) => { if (e.target === authModal) closeModal(); });
 
-    // Close modal on outside click
-    authModal.addEventListener('click', (e) => {
-        if (e.target === authModal) {
-            closeModal();
-        }
-    });
-
-    // Toggle Sign In / Sign Up
     toggleAuthModeBtn.addEventListener('click', () => {
         isSignUpMode = !isSignUpMode;
         if (isSignUpMode) {
@@ -92,26 +93,18 @@ document.addEventListener('DOMContentLoaded', () => {
             authForm.querySelector('button[type="submit"]').textContent = 'Sign In';
             toggleAuthModeBtn.parentElement.innerHTML = 'Don\'t have an account? <button type="button" id="toggle-auth-mode" class="btn-text highlight">Sign Up</button>';
         }
-        
-        // Re-attach event listener since innerHTML replaced the button
-        document.getElementById('toggle-auth-mode').addEventListener('click', () => {
-            toggleAuthModeBtn.click();
-        });
+        document.getElementById('toggle-auth-mode').addEventListener('click', () => toggleAuthModeBtn.click());
     });
 
-    // Form Submit (Mock Authentication)
     authForm.addEventListener('submit', (e) => {
         e.preventDefault();
         closeModal();
         enterAppView();
     });
 
-    // Enter App View from Landing 2 CTA
-    calcBestRouteBtn.addEventListener('click', () => {
-        enterAppView();
-    });
+    calcBestRouteBtn.addEventListener('click', () => enterAppView());
 
-    // Hamburger Menu
+    // === Hamburger ===
     menuToggleBtn.addEventListener('click', (e) => {
         e.stopPropagation();
         isMenuOpen = !isMenuOpen;
@@ -119,13 +112,10 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     document.addEventListener('click', () => {
-        if (isMenuOpen) {
-            dropdownMenu.classList.add('hidden');
-            isMenuOpen = false;
-        }
+        if (isMenuOpen) { dropdownMenu.classList.add('hidden'); isMenuOpen = false; }
     });
 
-    // Logout
+    // === Logout ===
     logoutBtn.addEventListener('click', () => {
         appView.classList.add('hidden');
         landingView.classList.remove('hidden');
@@ -133,13 +123,26 @@ document.addEventListener('DOMContentLoaded', () => {
         window.scrollTo(0, 0);
     });
 
-    // === Route Finding (Real API) ===
+    // === Mode Selector ===
+    modeSelector.addEventListener('click', (e) => {
+        const btn = e.target.closest('.mode-btn');
+        if (!btn) return;
+        btn.classList.toggle('active');
+        // Ensure at least one mode is always selected
+        const activeCount = modeSelector.querySelectorAll('.mode-btn.active').length;
+        if (activeCount === 0) btn.classList.add('active');
+    });
+
+    function getSelectedModes() {
+        return [...modeSelector.querySelectorAll('.mode-btn.active')].map(b => b.dataset.mode);
+    }
+
+    // === Route API Call ===
     findRouteBtn.addEventListener('click', async () => {
         const origin = startLocationInput.value.trim();
         const destination = endLocationInput.value.trim();
         if (!origin || !destination) return;
 
-        // Show loading state
         const originalHTML = findRouteBtn.innerHTML;
         findRouteBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Calculating...';
         findRouteBtn.disabled = true;
@@ -149,16 +152,17 @@ document.addEventListener('DOMContentLoaded', () => {
             const response = await fetch(`${API_BASE_URL}/api/commute-routes`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ origin, destination }),
+                body: JSON.stringify({ origin, destination, modes: getSelectedModes() }),
             });
 
             if (!response.ok) {
-                const errorData = await response.json().catch(() => ({ error: 'Unknown server error.' }));
-                throw new Error(errorData.error || `Server error: ${response.status}`);
+                const err = await response.json().catch(() => ({ error: 'Unknown server error.' }));
+                throw new Error(err.error || `Server error: ${response.status}`);
             }
 
             const data = await response.json();
-            handleRouteResponse(data);
+            lastApiResponse = data;
+            handleRouteResponse(data, null);
 
         } catch (err) {
             console.error('Route fetch failed:', err);
@@ -170,54 +174,131 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // === Handle API Response ===
-    function handleRouteResponse(data) {
-        const { recommendation, weather, policy } = data;
+    function handleRouteResponse(data, selectedAltIndex) {
+        const { recommendation, alternatives, weather, policy } = data;
 
-        // Update weather widget with live data
-        if (weather) {
-            updateWeatherWidget(weather);
-        }
+        if (weather) updateWeatherWidget(weather, policy);
 
         if (!recommendation) {
             showRouteError('No route could be found for this trip.');
             return;
         }
 
-        // Update route result card
-        const modeIcon = getModeIcon(recommendation.mode);
-        const durationText = `${recommendation.durationMinutes} mins`;
-        const distanceText = recommendation.distanceKm ? ` · ${recommendation.distanceKm} km` : '';
-        const policyMsg = policy?.message ?? '';
+        // Determine which route to display (best or a selected alternative)
+        const displayRoute = selectedAltIndex !== null && alternatives?.[selectedAltIndex]
+            ? alternatives[selectedAltIndex]
+            : recommendation;
+
+        // Populate route result
+        routeModeIconEl.innerHTML = getModeIcon(displayRoute.mode);
+        routeDurationEl.textContent = `${displayRoute.durationMinutes} mins`;
+        routeDistanceEl.textContent = displayRoute.distanceKm ? `· ${displayRoute.distanceKm} km` : '';
+        routeSummaryEl.textContent = displayRoute.summary || '';
+        routeReasonEl.textContent = displayRoute.recommendationReason || '';
+
+        // Policy warning
+        if (policy?.message) {
+            routeWarningEl.innerHTML = `${getPolicyIcon(policy.condition)} <span>${policy.message}</span>`;
+            routeWarningEl.style.display = 'flex';
+        } else {
+            routeWarningEl.style.display = 'none';
+        }
 
         routeResult.classList.remove('hidden');
-        routeResult.querySelector('.route-time').innerHTML =
-            `${modeIcon} <span>${durationText}${distanceText}</span>`;
-        routeResult.querySelector('.route-warning').innerHTML =
-            `${getPolicyIcon(policy?.condition)} <span>${policyMsg}</span>`;
 
-        // Draw the real route on the map
-        if (recommendation.encodedPolyline) {
-            drawRealRoute(recommendation.encodedPolyline);
+        // Draw this route's polyline
+        if (displayRoute.encodedPolyline) {
+            drawRealRoute(displayRoute.encodedPolyline);
         }
+
+        // Render alternatives
+        renderAlternatives(recommendation, alternatives, selectedAltIndex);
     }
 
     function showRouteError(message) {
+        routeModeIconEl.innerHTML = '<i class="fa-solid fa-circle-exclamation" style="color:#ef4444;"></i>';
+        routeDurationEl.textContent = 'Error';
+        routeDistanceEl.textContent = '';
+        routeSummaryEl.textContent = '';
+        routeReasonEl.textContent = '';
+        routeWarningEl.innerHTML = `<i class="fa-solid fa-triangle-exclamation"></i> <span>${message}</span>`;
+        routeWarningEl.style.display = 'flex';
         routeResult.classList.remove('hidden');
-        routeResult.querySelector('.route-time').innerHTML =
-            `<i class="fa-solid fa-circle-exclamation" style="color:#ef4444;"></i> <span>Error</span>`;
-        routeResult.querySelector('.route-warning').innerHTML =
-            `<i class="fa-solid fa-triangle-exclamation"></i> <span>${message}</span>`;
+        alternativesPanel.classList.add('hidden');
+    }
+
+    // === Alternatives Panel ===
+    function renderAlternatives(recommendation, alternatives, selectedAltIndex) {
+        if (!alternatives || alternatives.length === 0) {
+            alternativesPanel.classList.add('hidden');
+            return;
+        }
+
+        alternativesList.innerHTML = '';
+
+        // Include best recommendation as first "selectable" option too
+        const allRoutes = [recommendation, ...alternatives];
+
+        allRoutes.forEach((route, idx) => {
+            const isSelected = (selectedAltIndex === null && idx === 0) ||
+                               (selectedAltIndex !== null && idx === selectedAltIndex + 1);
+            const isBest = idx === 0;
+
+            const item = document.createElement('div');
+            item.className = `alt-route-item${isSelected ? ' selected' : ''}`;
+            item.innerHTML = `
+                <div class="alt-mode-icon">${getModeIcon(route.mode)}</div>
+                <div class="alt-info">
+                    <div class="alt-duration">${route.durationMinutes} mins${isBest ? ' <span style="color:#22c55e;font-size:0.7rem;">★ Best</span>' : ''}</div>
+                    <div class="alt-detail">${route.distanceKm ? route.distanceKm + ' km · ' : ''}${route.summary || modeLabel(route.mode)}</div>
+                </div>
+            `;
+            item.addEventListener('click', () => {
+                const altIdx = idx === 0 ? null : idx - 1;
+                handleRouteResponse(lastApiResponse, altIdx);
+            });
+            alternativesList.appendChild(item);
+        });
+
+        alternativesPanel.classList.remove('hidden');
     }
 
     // === Weather Widget ===
-    function updateWeatherWidget(weather) {
+    function updateWeatherWidget(weather, policy) {
         if (currentTempEl) {
             currentTempEl.textContent = weather.temperatureC !== null
-                ? `${Math.round(weather.temperatureC)}°C`
-                : '--°C';
+                ? `${Math.round(weather.temperatureC)}°C` : '--°C';
         }
         if (currentDescEl) {
             currentDescEl.textContent = getWeatherDescription(weather.weatherCode);
+        }
+        if (feelsLikeEl) {
+            feelsLikeEl.textContent = weather.apparentTemperatureC !== null
+                ? `Feels like ${Math.round(weather.apparentTemperatureC)}°C` : 'Feels like --°C';
+        }
+        if (rainChanceEl) {
+            rainChanceEl.textContent = weather.precipitationProbability !== undefined
+                ? `${weather.precipitationProbability}%` : '--%';
+        }
+        if (precipMmEl) {
+            precipMmEl.textContent = weather.precipitationMm !== undefined
+                ? `${weather.precipitationMm} mm` : '-- mm';
+        }
+        if (weatherIconEl) {
+            weatherIconEl.innerHTML = getWeatherIconHTML(weather.weatherCode);
+        }
+        if (policyBadgeEl && policy) {
+            policyBadgeEl.className = 'policy-badge';
+            if (policy.condition === 'HIGH_PRECIPITATION') {
+                policyBadgeEl.textContent = 'RAIN ALERT';
+                policyBadgeEl.classList.add('policy-rain');
+            } else if (policy.condition === 'HIGH_HEAT_INDEX') {
+                policyBadgeEl.textContent = 'HEAT ALERT';
+                policyBadgeEl.classList.add('policy-heat');
+            } else {
+                policyBadgeEl.textContent = 'NORMAL';
+                policyBadgeEl.classList.add('policy-normal');
+            }
         }
     }
 
@@ -233,6 +314,21 @@ document.addEventListener('DOMContentLoaded', () => {
         if (code <= 86) return 'Snow Showers';
         if (code <= 99) return 'Thunderstorm';
         return 'Unknown';
+    }
+
+    function getWeatherIconHTML(code) {
+        let iconClass = 'fa-solid fa-sun';
+        let color = '#fcd34d';
+        if (code === null || code === undefined) { iconClass = 'fa-solid fa-cloud-sun'; color = '#60a5fa'; }
+        else if (code === 0) { iconClass = 'fa-solid fa-sun'; color = '#fcd34d'; }
+        else if (code <= 3) { iconClass = 'fa-solid fa-cloud-sun'; color = '#94a3b8'; }
+        else if (code <= 49) { iconClass = 'fa-solid fa-smog'; color = '#94a3b8'; }
+        else if (code <= 59) { iconClass = 'fa-solid fa-cloud-drizzle'; color = '#60a5fa'; }
+        else if (code <= 69) { iconClass = 'fa-solid fa-cloud-rain'; color = '#60a5fa'; }
+        else if (code <= 82) { iconClass = 'fa-solid fa-cloud-showers-heavy'; color = '#3b82f6'; }
+        else if (code <= 86) { iconClass = 'fa-solid fa-snowflake'; color = '#bfdbfe'; }
+        else if (code <= 99) { iconClass = 'fa-solid fa-cloud-bolt'; color = '#fbbf24'; }
+        return `<i class="${iconClass}" style="font-size:3rem;color:${color};"></i>`;
     }
 
     // === Icon Helpers ===
@@ -253,30 +349,27 @@ document.addEventListener('DOMContentLoaded', () => {
         return '<i class="fa-solid fa-circle-check" style="color:#22c55e;"></i>';
     }
 
+    function modeLabel(mode) {
+        return (mode || '').toLowerCase().replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase());
+    }
+
     // === View Transition ===
     function enterAppView() {
         landingView.classList.add('hidden');
         appView.classList.remove('hidden');
         document.body.style.overflow = 'hidden';
-        
+
         if (!mapInitialized) {
             initializeMap();
             mapInitialized = true;
         } else {
-            setTimeout(() => {
-                map.invalidateSize();
-            }, 100);
+            setTimeout(() => map.invalidateSize(), 100);
         }
     }
 
-    // === Map Logic ===
+    // === Map ===
     function initializeMap() {
-        const manilaLat = 14.5995;
-        const manilaLng = 120.9842;
-
-        map = L.map('map', {
-            zoomControl: false
-        }).setView([manilaLat, manilaLng], 13);
+        map = L.map('map', { zoomControl: false }).setView([14.5995, 120.9842], 13);
 
         L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
             attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
@@ -284,14 +377,10 @@ document.addEventListener('DOMContentLoaded', () => {
             maxZoom: 20
         }).addTo(map);
 
-        L.control.zoom({
-            position: 'bottomleft'
-        }).addTo(map);
-
+        L.control.zoom({ position: 'bottomleft' }).addTo(map);
         routeLayerGroup = L.layerGroup().addTo(map);
     }
 
-    // === Draw Real Route from Encoded Polyline ===
     function drawRealRoute(encodedPolyline) {
         if (!map) return;
         routeLayerGroup.clearLayers();
@@ -299,69 +388,42 @@ document.addEventListener('DOMContentLoaded', () => {
         const latlngs = decodePolyline(encodedPolyline);
         if (latlngs.length === 0) return;
 
-        const start = latlngs[0];
-        const end = latlngs[latlngs.length - 1];
-
-        // Draw route polyline
         const polyline = L.polyline(latlngs, {
-            color: '#3b82f6',
-            weight: 6,
-            opacity: 0.85,
-            lineJoin: 'round'
+            color: '#3b82f6', weight: 6, opacity: 0.85, lineJoin: 'round'
         }).addTo(routeLayerGroup);
 
-        // Start marker
         const startIcon = L.divIcon({
             className: 'custom-marker',
-            html: '<i class="fa-solid fa-circle-dot" style="color: #3b82f6; font-size: 20px; background: white; border-radius: 50%; padding: 2px;"></i>',
-            iconSize: [24, 24],
-            iconAnchor: [12, 12]
+            html: '<i class="fa-solid fa-circle-dot" style="color:#3b82f6;font-size:20px;background:white;border-radius:50%;padding:2px;"></i>',
+            iconSize: [24, 24], iconAnchor: [12, 12]
         });
-
-        // End marker
         const endIcon = L.divIcon({
             className: 'custom-marker',
-            html: '<i class="fa-solid fa-location-dot" style="color: #ef4444; font-size: 24px; text-shadow: 0 2px 4px rgba(0,0,0,0.5);"></i>',
-            iconSize: [24, 24],
-            iconAnchor: [12, 24]
+            html: '<i class="fa-solid fa-location-dot" style="color:#ef4444;font-size:24px;text-shadow:0 2px 4px rgba(0,0,0,0.5);"></i>',
+            iconSize: [24, 24], iconAnchor: [12, 24]
         });
 
-        L.marker(start, { icon: startIcon }).addTo(routeLayerGroup);
-        L.marker(end, { icon: endIcon }).addTo(routeLayerGroup);
-
+        L.marker(latlngs[0], { icon: startIcon }).addTo(routeLayerGroup);
+        L.marker(latlngs[latlngs.length - 1], { icon: endIcon }).addTo(routeLayerGroup);
         map.fitBounds(polyline.getBounds(), { padding: [50, 50] });
     }
 
     // === Google Encoded Polyline Decoder ===
     function decodePolyline(encoded) {
         const latlngs = [];
-        let index = 0;
-        let lat = 0;
-        let lng = 0;
+        let index = 0, lat = 0, lng = 0;
 
         while (index < encoded.length) {
             let b, shift = 0, result = 0;
-            do {
-                b = encoded.charCodeAt(index++) - 63;
-                result |= (b & 0x1f) << shift;
-                shift += 5;
-            } while (b >= 0x20);
-            const dlat = (result & 1) ? ~(result >> 1) : (result >> 1);
-            lat += dlat;
+            do { b = encoded.charCodeAt(index++) - 63; result |= (b & 0x1f) << shift; shift += 5; } while (b >= 0x20);
+            lat += (result & 1) ? ~(result >> 1) : (result >> 1);
 
-            shift = 0;
-            result = 0;
-            do {
-                b = encoded.charCodeAt(index++) - 63;
-                result |= (b & 0x1f) << shift;
-                shift += 5;
-            } while (b >= 0x20);
-            const dlng = (result & 1) ? ~(result >> 1) : (result >> 1);
-            lng += dlng;
+            shift = 0; result = 0;
+            do { b = encoded.charCodeAt(index++) - 63; result |= (b & 0x1f) << shift; shift += 5; } while (b >= 0x20);
+            lng += (result & 1) ? ~(result >> 1) : (result >> 1);
 
             latlngs.push([lat / 1e5, lng / 1e5]);
         }
-
         return latlngs;
     }
 });

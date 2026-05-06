@@ -107,31 +107,31 @@
             <!-- Weather Widget -->
             <div class="weather-widget glass-card">
                 <div class="weather-current">
-                    <div class="weather-icon">
-                        <i class="fa-solid fa-cloud-showers-heavy"></i>
+                    <div class="weather-icon" id="weather-icon">
+                        <i class="fa-solid fa-cloud-sun"></i>
                     </div>
                     <div class="weather-details">
-                        <h3 id="current-temp">28°C</h3>
-                        <p id="current-desc">Heavy Rain</p>
+                        <h3 id="current-temp">--°C</h3>
+                        <p id="current-desc">Loading...</p>
+                        <p id="feels-like" class="feels-like">Feels like --°C</p>
                         <span class="location"><i class="fa-solid fa-location-dot"></i> Manila</span>
                     </div>
                 </div>
                 <hr>
-                <div class="weather-forecast">
-                    <div class="forecast-item">
-                        <span>Tomorrow</span>
-                        <i class="fa-solid fa-cloud-sun"></i>
-                        <span>31°C</span>
+                <div class="weather-stats">
+                    <div class="weather-stat">
+                        <i class="fa-solid fa-droplet"></i>
+                        <span id="rain-chance">--%</span>
+                        <small>Rain chance</small>
                     </div>
-                    <div class="forecast-item">
-                        <span>Wed</span>
-                        <i class="fa-solid fa-sun"></i>
-                        <span>33°C</span>
+                    <div class="weather-stat">
+                        <i class="fa-solid fa-wind"></i>
+                        <span id="precip-mm">-- mm</span>
+                        <small>Precipitation</small>
                     </div>
-                    <div class="forecast-item">
-                        <span>Thu</span>
-                        <i class="fa-solid fa-cloud-bolt"></i>
-                        <span>29°C</span>
+                    <div class="weather-stat policy-stat">
+                        <span id="policy-badge" class="policy-badge policy-normal">NORMAL</span>
+                        <small>Condition</small>
                     </div>
                 </div>
             </div>
@@ -139,6 +139,16 @@
             <!-- Routing Input Square -->
             <div class="routing-widget glass-card">
                 <h3>Find Best Route</h3>
+
+                <!-- Mode Selector -->
+                <div class="mode-selector" id="mode-selector">
+                    <button class="mode-btn active" data-mode="DRIVE" title="Drive"><i class="fa-solid fa-car"></i></button>
+                    <button class="mode-btn active" data-mode="TRANSIT" title="Transit"><i class="fa-solid fa-bus"></i></button>
+                    <button class="mode-btn active" data-mode="WALK" title="Walk"><i class="fa-solid fa-person-walking"></i></button>
+                    <button class="mode-btn active" data-mode="BICYCLE" title="Bicycle"><i class="fa-solid fa-bicycle"></i></button>
+                    <button class="mode-btn active" data-mode="TWO_WHEELER" title="Motorcycle"><i class="fa-solid fa-motorcycle"></i></button>
+                </div>
+
                 <div class="input-group">
                     <i class="fa-solid fa-circle-dot start-icon"></i>
                     <input type="text" id="start-location" placeholder="Starting Location" value="Quezon City">
@@ -153,11 +163,22 @@
                 <button id="find-route-btn" class="btn btn-primary btn-full">Get Route</button>
                 
                 <div id="route-result" class="route-result hidden">
-                    <div class="route-time">
-                        <i class="fa-solid fa-car"></i> <span>45 mins</span>
+                    <!-- Best Route -->
+                    <div class="route-best">
+                        <div class="route-time">
+                            <span id="route-mode-icon"><i class="fa-solid fa-car"></i></span>
+                            <span id="route-duration">-- mins</span>
+                            <span id="route-distance" class="route-distance"></span>
+                        </div>
+                        <div id="route-summary" class="route-summary"></div>
+                        <div id="route-reason" class="route-reason"></div>
+                        <div id="route-warning" class="route-warning"></div>
                     </div>
-                    <div class="route-warning">
-                        <i class="fa-solid fa-triangle-exclamation"></i> <span>Rain expected on route in 20 mins. Drive safely.</span>
+
+                    <!-- Alternatives -->
+                    <div id="alternatives-panel" class="alternatives-panel hidden">
+                        <p class="alternatives-label">Other options</p>
+                        <div id="alternatives-list"></div>
                     </div>
                 </div>
             </div>
