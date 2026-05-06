@@ -1,15 +1,47 @@
-document.addEventListener('DOMContentLoaded', () => {
-    // === Configuration ===
-    // Empty string = relative URL; Vercel rewrites /api/* → AWS backend (avoids mixed-content block)
-    const API_BASE_URL = '';
+// === Configuration ===
+// Vercel rewrites /api/* → AWS backend
+const API_BASE_URL = '';
 
+// === State ===
+let googleMap = null;
+let directionsRenderer = null;
+let routePolyline = null;
+let placesAutocompleteStart = null;
+let placesAutocompleteEnd = null;
+let lastApiResponse = null;
+let mapInitialized = false;
+
+// === Bootstrap: Fetch Maps Key then Load Google Maps ===
+async function bootstrap() {
+    try {
+        const res = await fetch(`${API_BASE_URL}/api/maps-key`);
+        const { key } = await res.json();
+        loadGoogleMapsScript(key);
+    } catch (err) {
+        console.error('Could not fetch Maps API key:', err);
+        // Fallback: init app without map
+        initApp();
+    }
+}
+
+function loadGoogleMapsScript(key) {
+    const script = document.createElement('script');
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${key}&libraries=places,geometry&callback=onGoogleMapsReady`;
+    script.async = true;
+    script.defer = true;
+    document.head.appendChild(script);
+}
+
+// Called by Google Maps SDK once loaded
+window.onGoogleMapsReady = function () {
+    initApp();
+};
+
+// === Main App Init ===
+function initApp() {
     // === DOM Elements ===
-
-    // Views
     const landingView = document.getElementById('landing-view');
     const appView = document.getElementById('app-view');
-
-    // Auth Modal
     const authModal = document.getElementById('auth-modal');
     const navSigninBtn = document.getElementById('nav-signin');
     const heroGetStartedBtn = document.getElementById('hero-get-started');
@@ -17,20 +49,18 @@ document.addEventListener('DOMContentLoaded', () => {
     const toggleAuthModeBtn = document.getElementById('toggle-auth-mode');
     const modalTitle = document.getElementById('modal-title');
     const authForm = document.getElementById('auth-form');
-
-    // App Navigation
     const calcBestRouteBtn = document.getElementById('calc-best-route');
     const menuToggleBtn = document.getElementById('menu-toggle');
     const dropdownMenu = document.getElementById('dropdown-menu');
     const logoutBtn = document.getElementById('logout-btn');
-
-    // Routing
     const findRouteBtn = document.getElementById('find-route-btn');
     const routeResult = document.getElementById('route-result');
     const startLocationInput = document.getElementById('start-location');
     const endLocationInput = document.getElementById('end-location');
+    const modeSelector = document.getElementById('mode-selector');
+    const navLinks = document.querySelectorAll('.nav-link');
 
-    // Weather widget
+    // Weather
     const weatherIconEl = document.getElementById('weather-icon');
     const currentTempEl = document.getElementById('current-temp');
     const currentDescEl = document.getElementById('current-desc');
@@ -39,7 +69,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const precipMmEl = document.getElementById('precip-mm');
     const policyBadgeEl = document.getElementById('policy-badge');
 
-    // Route result elements
+    // Route result
     const routeModeIconEl = document.getElementById('route-mode-icon');
     const routeDurationEl = document.getElementById('route-duration');
     const routeDistanceEl = document.getElementById('route-distance');
@@ -49,23 +79,31 @@ document.addEventListener('DOMContentLoaded', () => {
     const alternativesPanel = document.getElementById('alternatives-panel');
     const alternativesList = document.getElementById('alternatives-list');
 
-    // Mode selector
-    const modeSelector = document.getElementById('mode-selector');
-
-    // Nav links
-    const navLinks = document.querySelectorAll('.nav-link');
-
-    // === State ===
-    let mapInitialized = false;
-    let map;
-    let routeLayerGroup;
     let isSignUpMode = false;
     let isMenuOpen = false;
-    let lastApiResponse = null; // Store last response to allow alt-route switching
+
+    // === Places Autocomplete (if Google Maps loaded) ===
+    if (window.google?.maps?.places) {
+        const manilaLatLng = new google.maps.LatLng(14.5995, 120.9842);
+        const manilaRadius = 50000; // 50km around Manila
+        const autocompleteOptions = {
+            location: manilaLatLng,
+            radius: manilaRadius,
+            componentRestrictions: { country: 'ph' },
+        };
+
+        placesAutocompleteStart = new google.maps.places.Autocomplete(startLocationInput, autocompleteOptions);
+        placesAutocompleteEnd = new google.maps.places.Autocomplete(endLocationInput, autocompleteOptions);
+
+        // Prevent form submit on autocomplete selection
+        [placesAutocompleteStart, placesAutocompleteEnd].forEach(ac => {
+            ac.addListener('place_changed', () => { /* selection handled */ });
+        });
+    }
 
     // === Nav / Scroll ===
     navLinks.forEach(link => {
-        link.addEventListener('click', function(e) {
+        link.addEventListener('click', function (e) {
             e.preventDefault();
             navLinks.forEach(l => l.classList.remove('active'));
             this.classList.add('active');
@@ -110,7 +148,6 @@ document.addEventListener('DOMContentLoaded', () => {
         isMenuOpen = !isMenuOpen;
         dropdownMenu.classList.toggle('hidden');
     });
-
     document.addEventListener('click', () => {
         if (isMenuOpen) { dropdownMenu.classList.add('hidden'); isMenuOpen = false; }
     });
@@ -128,9 +165,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const btn = e.target.closest('.mode-btn');
         if (!btn) return;
         btn.classList.toggle('active');
-        // Ensure at least one mode is always selected
-        const activeCount = modeSelector.querySelectorAll('.mode-btn.active').length;
-        if (activeCount === 0) btn.classList.add('active');
+        if (modeSelector.querySelectorAll('.mode-btn.active').length === 0) {
+            btn.classList.add('active');
+        }
     });
 
     function getSelectedModes() {
@@ -184,19 +221,16 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        // Determine which route to display (best or a selected alternative)
         const displayRoute = selectedAltIndex !== null && alternatives?.[selectedAltIndex]
             ? alternatives[selectedAltIndex]
             : recommendation;
 
-        // Populate route result
         routeModeIconEl.innerHTML = getModeIcon(displayRoute.mode);
         routeDurationEl.textContent = `${displayRoute.durationMinutes} mins`;
         routeDistanceEl.textContent = displayRoute.distanceKm ? `· ${displayRoute.distanceKm} km` : '';
         routeSummaryEl.textContent = displayRoute.summary || '';
         routeReasonEl.textContent = displayRoute.recommendationReason || '';
 
-        // Policy warning
         if (policy?.message) {
             routeWarningEl.innerHTML = `${getPolicyIcon(policy.condition)} <span>${policy.message}</span>`;
             routeWarningEl.style.display = 'flex';
@@ -206,12 +240,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
         routeResult.classList.remove('hidden');
 
-        // Draw this route's polyline
         if (displayRoute.encodedPolyline) {
-            drawRealRoute(displayRoute.encodedPolyline);
+            drawRouteOnMap(displayRoute.encodedPolyline);
         }
 
-        // Render alternatives
         renderAlternatives(recommendation, alternatives, selectedAltIndex);
     }
 
@@ -235,13 +267,11 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         alternativesList.innerHTML = '';
-
-        // Include best recommendation as first "selectable" option too
         const allRoutes = [recommendation, ...alternatives];
 
         allRoutes.forEach((route, idx) => {
             const isSelected = (selectedAltIndex === null && idx === 0) ||
-                               (selectedAltIndex !== null && idx === selectedAltIndex + 1);
+                (selectedAltIndex !== null && idx === selectedAltIndex + 1);
             const isBest = idx === 0;
 
             const item = document.createElement('div');
@@ -265,28 +295,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // === Weather Widget ===
     function updateWeatherWidget(weather, policy) {
-        if (currentTempEl) {
-            currentTempEl.textContent = weather.temperatureC !== null
-                ? `${Math.round(weather.temperatureC)}°C` : '--°C';
-        }
-        if (currentDescEl) {
-            currentDescEl.textContent = getWeatherDescription(weather.weatherCode);
-        }
-        if (feelsLikeEl) {
-            feelsLikeEl.textContent = weather.apparentTemperatureC !== null
-                ? `Feels like ${Math.round(weather.apparentTemperatureC)}°C` : 'Feels like --°C';
-        }
-        if (rainChanceEl) {
-            rainChanceEl.textContent = weather.precipitationProbability !== undefined
-                ? `${weather.precipitationProbability}%` : '--%';
-        }
-        if (precipMmEl) {
-            precipMmEl.textContent = weather.precipitationMm !== undefined
-                ? `${weather.precipitationMm} mm` : '-- mm';
-        }
-        if (weatherIconEl) {
-            weatherIconEl.innerHTML = getWeatherIconHTML(weather.weatherCode);
-        }
+        if (currentTempEl) currentTempEl.textContent = weather.temperatureC !== null ? `${Math.round(weather.temperatureC)}°C` : '--°C';
+        if (currentDescEl) currentDescEl.textContent = getWeatherDescription(weather.weatherCode);
+        if (feelsLikeEl) feelsLikeEl.textContent = weather.apparentTemperatureC !== null ? `Feels like ${Math.round(weather.apparentTemperatureC)}°C` : 'Feels like --°C';
+        if (rainChanceEl) rainChanceEl.textContent = weather.precipitationProbability !== undefined ? `${weather.precipitationProbability}%` : '--%';
+        if (precipMmEl) precipMmEl.textContent = weather.precipitationMm !== undefined ? `${weather.precipitationMm} mm` : '-- mm';
+        if (weatherIconEl) weatherIconEl.innerHTML = getWeatherIconHTML(weather.weatherCode);
         if (policyBadgeEl && policy) {
             policyBadgeEl.className = 'policy-badge';
             if (policy.condition === 'HIGH_PRECIPITATION') {
@@ -317,10 +331,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function getWeatherIconHTML(code) {
-        let iconClass = 'fa-solid fa-sun';
-        let color = '#fcd34d';
-        if (code === null || code === undefined) { iconClass = 'fa-solid fa-cloud-sun'; color = '#60a5fa'; }
-        else if (code === 0) { iconClass = 'fa-solid fa-sun'; color = '#fcd34d'; }
+        let iconClass = 'fa-solid fa-cloud-sun', color = '#60a5fa';
+        if (code === 0) { iconClass = 'fa-solid fa-sun'; color = '#fcd34d'; }
         else if (code <= 3) { iconClass = 'fa-solid fa-cloud-sun'; color = '#94a3b8'; }
         else if (code <= 49) { iconClass = 'fa-solid fa-smog'; color = '#94a3b8'; }
         else if (code <= 59) { iconClass = 'fa-solid fa-cloud-drizzle'; color = '#60a5fa'; }
@@ -331,15 +343,9 @@ document.addEventListener('DOMContentLoaded', () => {
         return `<i class="${iconClass}" style="font-size:3rem;color:${color};"></i>`;
     }
 
-    // === Icon Helpers ===
+    // === Helpers ===
     function getModeIcon(mode) {
-        const icons = {
-            DRIVE: '<i class="fa-solid fa-car"></i>',
-            TRANSIT: '<i class="fa-solid fa-bus"></i>',
-            WALK: '<i class="fa-solid fa-person-walking"></i>',
-            BICYCLE: '<i class="fa-solid fa-bicycle"></i>',
-            TWO_WHEELER: '<i class="fa-solid fa-motorcycle"></i>',
-        };
+        const icons = { DRIVE: '<i class="fa-solid fa-car"></i>', TRANSIT: '<i class="fa-solid fa-bus"></i>', WALK: '<i class="fa-solid fa-person-walking"></i>', BICYCLE: '<i class="fa-solid fa-bicycle"></i>', TWO_WHEELER: '<i class="fa-solid fa-motorcycle"></i>' };
         return icons[mode] || '<i class="fa-solid fa-route"></i>';
     }
 
@@ -362,68 +368,94 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!mapInitialized) {
             initializeMap();
             mapInitialized = true;
-        } else {
-            setTimeout(() => map.invalidateSize(), 100);
+        } else if (googleMap) {
+            google.maps.event.trigger(googleMap, 'resize');
+            googleMap.setCenter({ lat: 14.5995, lng: 120.9842 });
         }
     }
 
-    // === Map ===
+    // === Google Map Init ===
     function initializeMap() {
-        map = L.map('map', { zoomControl: false }).setView([14.5995, 120.9842], 13);
-
-        L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
-            subdomains: 'abcd',
-            maxZoom: 20
-        }).addTo(map);
-
-        L.control.zoom({ position: 'bottomleft' }).addTo(map);
-        routeLayerGroup = L.layerGroup().addTo(map);
-    }
-
-    function drawRealRoute(encodedPolyline) {
-        if (!map) return;
-        routeLayerGroup.clearLayers();
-
-        const latlngs = decodePolyline(encodedPolyline);
-        if (latlngs.length === 0) return;
-
-        const polyline = L.polyline(latlngs, {
-            color: '#3b82f6', weight: 6, opacity: 0.85, lineJoin: 'round'
-        }).addTo(routeLayerGroup);
-
-        const startIcon = L.divIcon({
-            className: 'custom-marker',
-            html: '<i class="fa-solid fa-circle-dot" style="color:#3b82f6;font-size:20px;background:white;border-radius:50%;padding:2px;"></i>',
-            iconSize: [24, 24], iconAnchor: [12, 12]
-        });
-        const endIcon = L.divIcon({
-            className: 'custom-marker',
-            html: '<i class="fa-solid fa-location-dot" style="color:#ef4444;font-size:24px;text-shadow:0 2px 4px rgba(0,0,0,0.5);"></i>',
-            iconSize: [24, 24], iconAnchor: [12, 24]
-        });
-
-        L.marker(latlngs[0], { icon: startIcon }).addTo(routeLayerGroup);
-        L.marker(latlngs[latlngs.length - 1], { icon: endIcon }).addTo(routeLayerGroup);
-        map.fitBounds(polyline.getBounds(), { padding: [50, 50] });
-    }
-
-    // === Google Encoded Polyline Decoder ===
-    function decodePolyline(encoded) {
-        const latlngs = [];
-        let index = 0, lat = 0, lng = 0;
-
-        while (index < encoded.length) {
-            let b, shift = 0, result = 0;
-            do { b = encoded.charCodeAt(index++) - 63; result |= (b & 0x1f) << shift; shift += 5; } while (b >= 0x20);
-            lat += (result & 1) ? ~(result >> 1) : (result >> 1);
-
-            shift = 0; result = 0;
-            do { b = encoded.charCodeAt(index++) - 63; result |= (b & 0x1f) << shift; shift += 5; } while (b >= 0x20);
-            lng += (result & 1) ? ~(result >> 1) : (result >> 1);
-
-            latlngs.push([lat / 1e5, lng / 1e5]);
+        if (!window.google?.maps) {
+            document.getElementById('map').innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#94a3b8;font-size:1rem;"><i class="fa-solid fa-map" style="margin-right:8px;"></i>Map unavailable — check API key</div>';
+            return;
         }
-        return latlngs;
+
+        googleMap = new google.maps.Map(document.getElementById('map'), {
+            center: { lat: 14.5995, lng: 120.9842 },
+            zoom: 13,
+            mapId: 'routecast_map',
+            disableDefaultUI: false,
+            zoomControl: true,
+            zoomControlOptions: { position: google.maps.ControlPosition.LEFT_BOTTOM },
+            mapTypeControl: false,
+            streetViewControl: false,
+            fullscreenControl: false,
+            styles: [
+                { elementType: 'geometry', stylers: [{ color: '#1e293b' }] },
+                { elementType: 'labels.text.stroke', stylers: [{ color: '#0f172a' }] },
+                { elementType: 'labels.text.fill', stylers: [{ color: '#94a3b8' }] },
+                { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#334155' }] },
+                { featureType: 'road', elementType: 'geometry.stroke', stylers: [{ color: '#1e293b' }] },
+                { featureType: 'road.highway', elementType: 'geometry', stylers: [{ color: '#475569' }] },
+                { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#0f172a' }] },
+                { featureType: 'water', elementType: 'labels.text.fill', stylers: [{ color: '#475569' }] },
+                { featureType: 'poi', stylers: [{ visibility: 'off' }] },
+                { featureType: 'transit', stylers: [{ visibility: 'simplified' }] },
+            ],
+        });
     }
-});
+
+    // === Draw Route using Google Maps Polyline (decoded from backend) ===
+    function drawRouteOnMap(encodedPolyline) {
+        if (!googleMap || !window.google?.maps) return;
+
+        // Clear previous route
+        if (routePolyline) routePolyline.setMap(null);
+
+        // Decode using Google's geometry library
+        const path = google.maps.geometry.encoding.decodePath(encodedPolyline);
+
+        routePolyline = new google.maps.Polyline({
+            path,
+            geodesic: true,
+            strokeColor: '#3b82f6',
+            strokeOpacity: 0.9,
+            strokeWeight: 6,
+            map: googleMap,
+        });
+
+        // Add start/end markers
+        const startPos = path[0];
+        const endPos = path[path.length - 1];
+
+        new google.maps.Marker({
+            position: startPos,
+            map: googleMap,
+            icon: {
+                path: google.maps.SymbolPath.CIRCLE,
+                scale: 8,
+                fillColor: '#3b82f6',
+                fillOpacity: 1,
+                strokeColor: '#ffffff',
+                strokeWeight: 2,
+            },
+        });
+
+        new google.maps.Marker({
+            position: endPos,
+            map: googleMap,
+            icon: {
+                url: 'https://maps.google.com/mapfiles/ms/icons/red-dot.png',
+            },
+        });
+
+        // Fit map to route bounds
+        const bounds = new google.maps.LatLngBounds();
+        path.forEach(p => bounds.extend(p));
+        googleMap.fitBounds(bounds, { top: 80, right: 400, bottom: 40, left: 40 });
+    }
+}
+
+// === Start ===
+document.addEventListener('DOMContentLoaded', bootstrap);
