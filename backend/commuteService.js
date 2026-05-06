@@ -18,7 +18,7 @@ export async function recommendCommuteRoute(request, config) {
   validateCommuteRequest(request);
 
   const modes = normalizeModes(request.modes);
-  const departureTime = request.departureTime ?? new Date().toISOString();
+  const departureTime = request.departureTime ?? futureIsoTimestamp(5);
   const initialWeatherPoint = getWeatherPointFromRequest(request);
 
   const firstPassRoutes = await fetchRoutesForModes({
@@ -112,17 +112,19 @@ async function fetchRoutesForModes({ apiKey, origin, destination, departureTime,
 
 async function fetchGoogleRoute({ apiKey, origin, destination, departureTime, mode }) {
   const body = {
-    origin: { waypoint: toGoogleWaypoint(origin) },
-    destination: { waypoint: toGoogleWaypoint(destination) },
+    origin: toGoogleWaypoint(origin),
+    destination: toGoogleWaypoint(destination),
     travelMode: mode,
     computeAlternativeRoutes: true,
-    departureTime,
     languageCode: 'en-US',
     units: 'METRIC',
   };
 
   if (mode === 'DRIVE' || mode === 'TWO_WHEELER') {
     body.routingPreference = 'TRAFFIC_AWARE_OPTIMAL';
+    body.departureTime = departureTime;
+  } else if (mode === 'TRANSIT') {
+    body.departureTime = departureTime;
   }
 
   const response = await fetch(GOOGLE_ROUTES_URL, {
@@ -300,6 +302,10 @@ function isLatLng(value) {
 function parseDurationSeconds(duration) {
   if (typeof duration !== 'string') return 0;
   return Number(duration.replace('s', '')) || 0;
+}
+
+function futureIsoTimestamp(minutesFromNow) {
+  return new Date(Date.now() + minutesFromNow * 60 * 1000).toISOString();
 }
 
 function nearestHourIndex(times = [], currentTime) {

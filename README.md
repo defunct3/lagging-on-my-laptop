@@ -1,14 +1,99 @@
 # Lagging-On-My-Laptop
 
-Weather-aware commute routing app for the hackathon.
+Weather-aware commute routing app for Dev Week 2026.
 
-The project is split into two deployable parts:
+## What Is This?
+
+RouteCast helps commuters choose a better route based on both travel time and current weather conditions.
+
+Users enter a starting location, destination, and preferred travel modes. The app checks route options with Google Routes and checks local weather with Open-Meteo. If rain risk is high, it prefers enclosed vehicles. If the heat index is high, it prefers air-conditioned or enclosed transport. Otherwise, it recommends the fastest efficient route.
+
+This project is for daily commuters, students, workers, and hackathon users who want route suggestions that react to practical weather conditions, not just distance and time.
+
+## How Do I Use It?
+
+Open the deployed frontend:
+
+```text
+https://devweek2026-git-main-priensmaggis-projects.vercel.app
+```
+
+Then:
+
+1. Click **Get Started** or **Calculate my best route**.
+2. Enter your starting location.
+3. Enter your destination.
+4. Select the travel modes you want to compare.
+5. Click **Get Route**.
+
+The app will show the recommended route, weather-based reason, travel time, distance, and alternatives when available.
+
+## How Do I Run It Locally?
+
+Clone the repository:
+
+```bash
+git clone https://github.com/defunct3/lagging-on-my-laptop.git
+cd lagging-on-my-laptop
+```
+
+Run the backend:
+
+```powershell
+cd backend
+$env:GOOGLE_ROUTES_API_KEY="your_server_routes_key"
+$env:GOOGLE_MAPS_BROWSER_API_KEY="your_browser_maps_key"
+$env:CORS_ORIGIN="*"
+npm start
+```
+
+The backend runs at:
+
+```text
+http://127.0.0.1:3001
+```
+
+Run the frontend locally by opening this file in a browser:
+
+```text
+frontend/index.html
+```
+
+For local frontend-to-backend API calls, either deploy through Vercel rewrites or temporarily set the frontend `API_BASE_URL` in `frontend/script.js` to:
+
+```js
+const API_BASE_URL = 'http://127.0.0.1:3001';
+```
+
+Before committing, change it back to:
+
+```js
+const API_BASE_URL = '';
+```
+
+The app has two deployable parts:
 
 ```text
 lagging-on-my-laptop/
   frontend/   Static website deployed on Vercel
   backend/    Node.js API deployed on AWS Elastic Beanstalk
 ```
+
+## Current Services
+
+Frontend:
+
+```text
+https://devweek2026-git-main-priensmaggis-projects.vercel.app
+```
+
+Backend:
+
+```text
+http://commute-backend-env.eba-wp2aijm3.us-east-1.elasticbeanstalk.com
+```
+
+The frontend should call backend endpoints through relative `/api/...` URLs. Vercel rewrites those requests to Elastic Beanstalk.
 
 ## Directory Layout
 
@@ -28,17 +113,20 @@ backend/
   README.md
 ```
 
+There is also a root `vercel.json` fallback for deployments that use the repository root instead of `frontend/`.
+
 ## Frontend Deployment
 
-Deploy `frontend/` to Vercel.
-
-In Vercel project settings, set:
+Preferred Vercel setting:
 
 ```text
 Root Directory: frontend
+Framework Preset: Other
+Build Command: empty
+Output Directory: empty or .
 ```
 
-`frontend/vercel.json` proxies frontend API calls to the Elastic Beanstalk backend:
+`frontend/vercel.json` proxies API calls:
 
 ```json
 {
@@ -51,7 +139,7 @@ Root Directory: frontend
 }
 ```
 
-Frontend code should call the backend with relative URLs:
+Frontend code should call:
 
 ```js
 fetch('/api/commute-routes', {
@@ -60,18 +148,16 @@ fetch('/api/commute-routes', {
   body: JSON.stringify({
     origin: 'SM City Cebu, Cebu City',
     destination: 'Ayala Center Cebu',
-    weatherLocation: {
-      latitude: 10.3181,
-      longitude: 123.9058
-    },
     modes: ['DRIVE', 'WALK']
   })
 });
 ```
 
+Do not call the Elastic Beanstalk URL directly from browser code. Use `/api/...` so Vercel can proxy the request and avoid mixed-content issues.
+
 ## Backend Deployment
 
-Deploy `backend/` to AWS Elastic Beanstalk as a Node.js app.
+Deploy the contents of `backend/` to AWS Elastic Beanstalk as a Node.js app.
 
 Elastic Beanstalk uses:
 
@@ -89,11 +175,37 @@ npm start
 Required Elastic Beanstalk environment properties:
 
 ```env
-GOOGLE_ROUTES_API_KEY=your_google_routes_api_key
-CORS_ORIGIN=https://your-vercel-project.vercel.app
+GOOGLE_ROUTES_API_KEY=your_server_routes_key
+GOOGLE_MAPS_BROWSER_API_KEY=your_browser_maps_key
+CORS_ORIGIN=https://devweek2026-git-main-priensmaggis-projects.vercel.app
 ```
 
-For early testing, `CORS_ORIGIN=*` is acceptable. For final deployment, use the deployed Vercel URL.
+For early testing only, `CORS_ORIGIN=*` is acceptable.
+
+## Google Cloud Setup
+
+Use two API keys in the same Google Cloud project.
+
+Backend key:
+
+```text
+Name: Backend Routes Key
+Used as: GOOGLE_ROUTES_API_KEY
+Application restriction: None, or server IP if stable
+API restrictions: Routes API
+```
+
+Browser map key:
+
+```text
+Name: Browser Maps Key
+Used as: GOOGLE_MAPS_BROWSER_API_KEY
+Application restriction: Websites
+Allowed website: https://devweek2026-git-main-priensmaggis-projects.vercel.app/*
+API restrictions: Maps JavaScript API, Places API
+```
+
+The browser Maps key is returned by `GET /api/maps-key` so the frontend can load Google Maps JavaScript. The Routes key must never be exposed to frontend code.
 
 ## Backend Endpoints
 
@@ -101,6 +213,23 @@ Health check:
 
 ```http
 GET /api/health
+```
+
+Expected:
+
+```json
+{
+  "ok": true,
+  "service": "weather-aware-commute-api",
+  "googleRoutesConfigured": true,
+  "googleMapsBrowserConfigured": true
+}
+```
+
+Browser map key:
+
+```http
+GET /api/maps-key
 ```
 
 Route recommendation:
@@ -116,17 +245,24 @@ Example body:
 {
   "origin": "SM City Cebu, Cebu City",
   "destination": "Ayala Center Cebu",
+  "modes": ["DRIVE", "WALK"]
+}
+```
+
+Optional exact weather location:
+
+```json
+{
   "weatherLocation": {
     "latitude": 10.3181,
     "longitude": 123.9058
-  },
-  "modes": ["DRIVE", "WALK"]
+  }
 }
 ```
 
 ## Notes
 
 - Do not commit `.env` or API keys.
-- The Google Routes API key belongs only in Elastic Beanstalk environment properties.
 - Open-Meteo does not require an API key for this usage.
-- Vercel should call `/api/...`, not the Elastic Beanstalk URL directly.
+- If Google Maps says the page did not load correctly, check the Browser Maps Key website restrictions and enabled APIs.
+- If route recommendations fail, check the backend JSON error details from `POST /api/commute-routes`.

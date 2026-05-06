@@ -4,7 +4,7 @@ import { ApiError, recommendCommuteRoute } from './commuteService.js';
 const PORT = Number(process.env.PORT ?? 3001);
 const config = {
   googleRoutesApiKey: process.env.GOOGLE_ROUTES_API_KEY,
-  googleMapsApiKey: process.env.GOOGLE_ROUTES_API_KEY, // same key, restricted by referrer on GCP
+  googleMapsBrowserApiKey: process.env.GOOGLE_MAPS_BROWSER_API_KEY,
 };
 
 const server = http.createServer(async (req, res) => {
@@ -22,16 +22,17 @@ const server = http.createServer(async (req, res) => {
         ok: true,
         service: 'weather-aware-commute-api',
         googleRoutesConfigured: Boolean(config.googleRoutesApiKey),
+        googleMapsBrowserConfigured: Boolean(config.googleMapsBrowserApiKey),
       });
       return;
     }
 
     if (req.method === 'GET' && req.url === '/api/maps-key') {
-      if (!config.googleMapsApiKey) {
+      if (!config.googleMapsBrowserApiKey) {
         sendJson(res, 500, { error: 'Google Maps API key is not configured.' });
         return;
       }
-      sendJson(res, 200, { key: config.googleMapsApiKey });
+      sendJson(res, 200, { key: config.googleMapsBrowserApiKey });
       return;
     }
 
