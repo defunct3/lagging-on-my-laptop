@@ -1,0 +1,6 @@
+node_modules/
+dist/
+.git/
+.env
+*.log
+dia-browser-check.png
