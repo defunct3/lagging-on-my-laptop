@@ -1,4 +1,7 @@
 document.addEventListener('DOMContentLoaded', () => {
+    // === Configuration ===
+    const API_BASE_URL = 'http://commute-backend-env.eba-wp2aijm3.us-east-1.elasticbeanstalk.com';
+
     // === DOM Elements ===
     
     // Views
@@ -25,6 +28,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const routeResult = document.getElementById('route-result');
     const startLocationInput = document.getElementById('start-location');
     const endLocationInput = document.getElementById('end-location');
+
+    // Weather widget
+    const currentTempEl = document.getElementById('current-temp');
+    const currentDescEl = document.getElementById('current-desc');
     
     // Header links
     const navLinks = document.querySelectorAll('.nav-link');
@@ -87,14 +94,13 @@ document.addEventListener('DOMContentLoaded', () => {
         
         // Re-attach event listener since innerHTML replaced the button
         document.getElementById('toggle-auth-mode').addEventListener('click', () => {
-            toggleAuthModeBtn.click(); // Hacky but works for toggling back
+            toggleAuthModeBtn.click();
         });
     });
 
     // Form Submit (Mock Authentication)
     authForm.addEventListener('submit', (e) => {
         e.preventDefault();
-        // Simulate auth success and enter app
         closeModal();
         enterAppView();
     });
@@ -122,36 +128,140 @@ document.addEventListener('DOMContentLoaded', () => {
     logoutBtn.addEventListener('click', () => {
         appView.classList.add('hidden');
         landingView.classList.remove('hidden');
-        document.body.style.overflow = 'auto'; // Restore scroll
-        window.scrollTo(0, 0); // Go back to top
+        document.body.style.overflow = 'auto';
+        window.scrollTo(0, 0);
     });
 
-    // Routing Mock
-    findRouteBtn.addEventListener('click', () => {
-        if (!startLocationInput.value || !endLocationInput.value) return;
+    // === Route Finding (Real API) ===
+    findRouteBtn.addEventListener('click', async () => {
+        const origin = startLocationInput.value.trim();
+        const destination = endLocationInput.value.trim();
+        if (!origin || !destination) return;
 
         // Show loading state
-        const originalText = findRouteBtn.innerHTML;
+        const originalHTML = findRouteBtn.innerHTML;
         findRouteBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Calculating...';
-        
-        setTimeout(() => {
-            findRouteBtn.innerHTML = originalText;
-            routeResult.classList.remove('hidden');
-            drawMockRoute();
-        }, 1500);
+        findRouteBtn.disabled = true;
+        routeResult.classList.add('hidden');
+
+        try {
+            const response = await fetch(`${API_BASE_URL}/api/commute-routes`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ origin, destination }),
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({ error: 'Unknown server error.' }));
+                throw new Error(errorData.error || `Server error: ${response.status}`);
+            }
+
+            const data = await response.json();
+            handleRouteResponse(data);
+
+        } catch (err) {
+            console.error('Route fetch failed:', err);
+            showRouteError(err.message);
+        } finally {
+            findRouteBtn.innerHTML = originalHTML;
+            findRouteBtn.disabled = false;
+        }
     });
+
+    // === Handle API Response ===
+    function handleRouteResponse(data) {
+        const { recommendation, weather, policy } = data;
+
+        // Update weather widget with live data
+        if (weather) {
+            updateWeatherWidget(weather);
+        }
+
+        if (!recommendation) {
+            showRouteError('No route could be found for this trip.');
+            return;
+        }
+
+        // Update route result card
+        const modeIcon = getModeIcon(recommendation.mode);
+        const durationText = `${recommendation.durationMinutes} mins`;
+        const distanceText = recommendation.distanceKm ? ` · ${recommendation.distanceKm} km` : '';
+        const policyMsg = policy?.message ?? '';
+
+        routeResult.classList.remove('hidden');
+        routeResult.querySelector('.route-time').innerHTML =
+            `${modeIcon} <span>${durationText}${distanceText}</span>`;
+        routeResult.querySelector('.route-warning').innerHTML =
+            `${getPolicyIcon(policy?.condition)} <span>${policyMsg}</span>`;
+
+        // Draw the real route on the map
+        if (recommendation.encodedPolyline) {
+            drawRealRoute(recommendation.encodedPolyline);
+        }
+    }
+
+    function showRouteError(message) {
+        routeResult.classList.remove('hidden');
+        routeResult.querySelector('.route-time').innerHTML =
+            `<i class="fa-solid fa-circle-exclamation" style="color:#ef4444;"></i> <span>Error</span>`;
+        routeResult.querySelector('.route-warning').innerHTML =
+            `<i class="fa-solid fa-triangle-exclamation"></i> <span>${message}</span>`;
+    }
+
+    // === Weather Widget ===
+    function updateWeatherWidget(weather) {
+        if (currentTempEl) {
+            currentTempEl.textContent = weather.temperatureC !== null
+                ? `${Math.round(weather.temperatureC)}°C`
+                : '--°C';
+        }
+        if (currentDescEl) {
+            currentDescEl.textContent = getWeatherDescription(weather.weatherCode);
+        }
+    }
+
+    function getWeatherDescription(code) {
+        if (code === null || code === undefined) return 'Loading...';
+        if (code === 0) return 'Clear Sky';
+        if (code <= 3) return 'Partly Cloudy';
+        if (code <= 49) return 'Foggy';
+        if (code <= 59) return 'Drizzle';
+        if (code <= 69) return 'Rain';
+        if (code <= 79) return 'Snow';
+        if (code <= 82) return 'Rain Showers';
+        if (code <= 86) return 'Snow Showers';
+        if (code <= 99) return 'Thunderstorm';
+        return 'Unknown';
+    }
+
+    // === Icon Helpers ===
+    function getModeIcon(mode) {
+        const icons = {
+            DRIVE: '<i class="fa-solid fa-car"></i>',
+            TRANSIT: '<i class="fa-solid fa-bus"></i>',
+            WALK: '<i class="fa-solid fa-person-walking"></i>',
+            BICYCLE: '<i class="fa-solid fa-bicycle"></i>',
+            TWO_WHEELER: '<i class="fa-solid fa-motorcycle"></i>',
+        };
+        return icons[mode] || '<i class="fa-solid fa-route"></i>';
+    }
+
+    function getPolicyIcon(condition) {
+        if (condition === 'HIGH_PRECIPITATION') return '<i class="fa-solid fa-cloud-showers-heavy"></i>';
+        if (condition === 'HIGH_HEAT_INDEX') return '<i class="fa-solid fa-temperature-high"></i>';
+        return '<i class="fa-solid fa-circle-check" style="color:#22c55e;"></i>';
+    }
 
     // === View Transition ===
     function enterAppView() {
         landingView.classList.add('hidden');
         appView.classList.remove('hidden');
-        document.body.style.overflow = 'hidden'; // Prevent scroll on map
+        document.body.style.overflow = 'hidden';
         
         if (!mapInitialized) {
             initializeMap();
             mapInitialized = true;
         } else {
-            // Fix Leaflet container size issue when unhidden
             setTimeout(() => {
                 map.invalidateSize();
             }, 100);
@@ -160,22 +270,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // === Map Logic ===
     function initializeMap() {
-        // Manila coordinates
         const manilaLat = 14.5995;
         const manilaLng = 120.9842;
 
         map = L.map('map', {
-            zoomControl: false // Move zoom control
+            zoomControl: false
         }).setView([manilaLat, manilaLng], 13);
 
-        // Add standard OSM tiles
         L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
             attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
             subdomains: 'abcd',
             maxZoom: 20
         }).addTo(map);
 
-        // Add zoom control to bottom left
         L.control.zoom({
             position: 'bottomleft'
         }).addTo(map);
@@ -183,17 +290,26 @@ document.addEventListener('DOMContentLoaded', () => {
         routeLayerGroup = L.layerGroup().addTo(map);
     }
 
-    function drawMockRoute() {
+    // === Draw Real Route from Encoded Polyline ===
+    function drawRealRoute(encodedPolyline) {
         if (!map) return;
-        
         routeLayerGroup.clearLayers();
 
-        // Quezon City to Makati rough coords
-        const start = [14.6469, 121.0350]; // QC
-        const end = [14.5547, 121.0244];   // Makati
-        const mid = [14.6000, 121.0450];   // EDSA rough midpoint
+        const latlngs = decodePolyline(encodedPolyline);
+        if (latlngs.length === 0) return;
 
-        // Create markers
+        const start = latlngs[0];
+        const end = latlngs[latlngs.length - 1];
+
+        // Draw route polyline
+        const polyline = L.polyline(latlngs, {
+            color: '#3b82f6',
+            weight: 6,
+            opacity: 0.85,
+            lineJoin: 'round'
+        }).addTo(routeLayerGroup);
+
+        // Start marker
         const startIcon = L.divIcon({
             className: 'custom-marker',
             html: '<i class="fa-solid fa-circle-dot" style="color: #3b82f6; font-size: 20px; background: white; border-radius: 50%; padding: 2px;"></i>',
@@ -201,6 +317,7 @@ document.addEventListener('DOMContentLoaded', () => {
             iconAnchor: [12, 12]
         });
 
+        // End marker
         const endIcon = L.divIcon({
             className: 'custom-marker',
             html: '<i class="fa-solid fa-location-dot" style="color: #ef4444; font-size: 24px; text-shadow: 0 2px 4px rgba(0,0,0,0.5);"></i>',
@@ -208,20 +325,42 @@ document.addEventListener('DOMContentLoaded', () => {
             iconAnchor: [12, 24]
         });
 
-        L.marker(start, {icon: startIcon}).addTo(routeLayerGroup);
-        L.marker(end, {icon: endIcon}).addTo(routeLayerGroup);
+        L.marker(start, { icon: startIcon }).addTo(routeLayerGroup);
+        L.marker(end, { icon: endIcon }).addTo(routeLayerGroup);
 
-        // Draw line
-        const latlngs = [start, mid, end];
-        const polyline = L.polyline(latlngs, {
-            color: '#3b82f6',
-            weight: 6,
-            opacity: 0.8,
-            dashArray: '10, 10',
-            lineJoin: 'round'
-        }).addTo(routeLayerGroup);
-
-        // Zoom map to fit route
         map.fitBounds(polyline.getBounds(), { padding: [50, 50] });
+    }
+
+    // === Google Encoded Polyline Decoder ===
+    function decodePolyline(encoded) {
+        const latlngs = [];
+        let index = 0;
+        let lat = 0;
+        let lng = 0;
+
+        while (index < encoded.length) {
+            let b, shift = 0, result = 0;
+            do {
+                b = encoded.charCodeAt(index++) - 63;
+                result |= (b & 0x1f) << shift;
+                shift += 5;
+            } while (b >= 0x20);
+            const dlat = (result & 1) ? ~(result >> 1) : (result >> 1);
+            lat += dlat;
+
+            shift = 0;
+            result = 0;
+            do {
+                b = encoded.charCodeAt(index++) - 63;
+                result |= (b & 0x1f) << shift;
+                shift += 5;
+            } while (b >= 0x20);
+            const dlng = (result & 1) ? ~(result >> 1) : (result >> 1);
+            lng += dlng;
+
+            latlngs.push([lat / 1e5, lng / 1e5]);
+        }
+
+        return latlngs;
     }
 });
