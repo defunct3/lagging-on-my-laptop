@@ -1,0 +1,8 @@
+{
+  "rewrites": [
+    {
+      "source": "/api/:path*",
+      "destination": "http://commute-backend-env.eba-wp2aijm3.us-east-1.elasticbeanstalk.com/api/:path*"
+    }
+  ]
+}
