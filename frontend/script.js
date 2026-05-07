@@ -78,6 +78,8 @@ function initApp() {
     const routeWarningEl = document.getElementById('route-warning');
     const alternativesPanel = document.getElementById('alternatives-panel');
     const alternativesList = document.getElementById('alternatives-list');
+    const refreshTripsBtn = document.getElementById('refresh-trips-btn');
+    const tripHistoryList = document.getElementById('trip-history-list');
 
     let isSignUpMode = false;
     let isMenuOpen = false;
@@ -159,6 +161,8 @@ function initApp() {
         document.body.style.overflow = 'auto';
         window.scrollTo(0, 0);
     });
+
+    refreshTripsBtn?.addEventListener('click', loadTripHistory);
 
     // === Mode Selector ===
     modeSelector.addEventListener('click', (e) => {
@@ -262,7 +266,7 @@ function initApp() {
 
     async function saveTripPlan({ origin, destination, modes, routeData }) {
         try {
-            await fetch(`${API_BASE_URL}/api/trip-plans`, {
+            const response = await fetch(`${API_BASE_URL}/api/trip-plans`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -276,9 +280,62 @@ function initApp() {
                     metadata: { requestedAt: routeData.requestedAt },
                 }),
             });
+
+            if (response.ok) loadTripHistory();
         } catch (err) {
             console.warn('Trip plan was not saved:', err);
         }
+    }
+
+    async function loadTripHistory() {
+        if (!tripHistoryList) return;
+
+        try {
+            const response = await fetch(`${API_BASE_URL}/api/trip-plans?limit=5`);
+            if (!response.ok) throw new Error('Trip history is not available yet.');
+
+            const { tripPlans = [] } = await response.json();
+            renderTripHistory(tripPlans);
+        } catch (err) {
+            tripHistoryList.innerHTML = `<p class="trip-history-empty">${err.message}</p>`;
+        }
+    }
+
+    function renderTripHistory(tripPlans) {
+        if (!tripHistoryList) return;
+
+        if (!tripPlans.length) {
+            tripHistoryList.innerHTML = '<p class="trip-history-empty">No saved trips yet.</p>';
+            return;
+        }
+
+        tripHistoryList.innerHTML = '';
+        tripPlans.forEach((trip) => {
+            const item = document.createElement('button');
+            item.className = 'trip-history-item';
+            item.type = 'button';
+            item.innerHTML = `
+                <span class="trip-history-route">${escapeHtml(trip.origin)} &rarr; ${escapeHtml(trip.destination)}</span>
+                <span class="trip-history-meta">
+                    ${modeLabel(trip.recommendation?.mode)} · ${trip.recommendation?.durationMinutes ?? '--'} mins
+                </span>
+            `;
+            item.addEventListener('click', () => {
+                startLocationInput.value = trip.origin;
+                endLocationInput.value = trip.destination;
+                if (trip.recommendation) {
+                    const restored = {
+                        recommendation: trip.recommendation,
+                        alternatives: trip.alternatives ?? [],
+                        weather: trip.weather,
+                        policy: trip.policy,
+                    };
+                    lastApiResponse = restored;
+                    handleRouteResponse(restored, null);
+                }
+            });
+            tripHistoryList.appendChild(item);
+        });
     }
 
     // === Alternatives Panel ===
@@ -384,6 +441,16 @@ function initApp() {
         return (mode || '').toLowerCase().replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase());
     }
 
+    function escapeHtml(value) {
+        return String(value ?? '').replace(/[&<>"']/g, (char) => ({
+            '&': '&amp;',
+            '<': '&lt;',
+            '>': '&gt;',
+            '"': '&quot;',
+            "'": '&#39;',
+        }[char]));
+    }
+
     // === View Transition ===
     function enterAppView() {
         landingView.classList.add('hidden');
@@ -397,6 +464,8 @@ function initApp() {
             google.maps.event.trigger(googleMap, 'resize');
             googleMap.setCenter({ lat: 14.5995, lng: 120.9842 });
         }
+
+        loadTripHistory();
     }
 
     // === Google Map Init ===

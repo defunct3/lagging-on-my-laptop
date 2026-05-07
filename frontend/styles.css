@@ -422,7 +422,7 @@ nav {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    z-index: 10;
+    z-index: 250;
     pointer-events: none;
 }
 
@@ -444,11 +444,22 @@ nav {
     backdrop-filter: var(--glass-blur);
     border-radius: 8px;
     border: 1px solid var(--glass-border);
+    box-shadow: var(--shadow-lg);
 }
 
 .hamburger-menu .btn-icon {
     width: 44px;
     height: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
+    background: rgba(15, 23, 42, 0.82);
+    color: #ffffff;
+}
+
+.hamburger-menu .btn-icon i {
+    color: #ffffff;
 }
 
 .dropdown {
@@ -461,7 +472,7 @@ nav {
     padding: 0.5rem;
     min-width: 150px;
     box-shadow: var(--shadow-lg);
-    z-index: 20;
+    z-index: 300;
 }
 
 .dropdown-item {
@@ -833,6 +844,82 @@ hr {
     padding: 0.75rem;
     border-radius: 6px;
     border: 1px solid rgba(251, 191, 36, 0.2);
+}
+
+/* Trip History */
+.trip-history-widget {
+    padding: 1.25rem;
+}
+
+.trip-history-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 0.75rem;
+}
+
+.trip-history-header h3 {
+    font-size: 1rem;
+    margin: 0;
+}
+
+.trip-history-header .btn-icon {
+    width: 34px;
+    height: 34px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.08);
+    color: var(--text-primary);
+}
+
+.trip-history-list {
+    display: grid;
+    gap: 0.5rem;
+}
+
+.trip-history-empty {
+    margin: 0;
+    color: var(--text-secondary);
+    font-size: 0.85rem;
+}
+
+.trip-history-item {
+    width: 100%;
+    padding: 0.7rem 0.75rem;
+    border: 1px solid var(--glass-border);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.06);
+    color: var(--text-primary);
+    text-align: left;
+    cursor: pointer;
+    transition: var(--transition);
+}
+
+.trip-history-item:hover {
+    background: rgba(255, 255, 255, 0.1);
+    border-color: rgba(96, 165, 250, 0.45);
+}
+
+.trip-history-route,
+.trip-history-meta {
+    display: block;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.trip-history-route {
+    font-size: 0.85rem;
+    font-weight: 600;
+}
+
+.trip-history-meta {
+    margin-top: 0.2rem;
+    color: var(--text-secondary);
+    font-size: 0.75rem;
 }
 
 /* Modal */
