@@ -207,27 +207,34 @@ async function fetchWeather({ latitude, longitude }) {
 function chooseWeatherPolicy(weather) {
   const rainRisk = Number(weather.precipitationProbability ?? 0);
   const feelsLike = Number(weather.apparentTemperatureC ?? 0);
+  const heatIndex = classifyPagasaHeatIndex(feelsLike);
 
   if (rainRisk >= 55 || Number(weather.precipitationMm ?? 0) > 0) {
     return {
       condition: 'HIGH_PRECIPITATION',
       preferredModes: [...ENCLOSED_MODES],
+      heatIndex,
       message: 'High precipitation risk. Prefer enclosed vehicles.',
     };
   }
 
-  if (feelsLike >= 32) {
+  if (heatIndex.prefersAirConditioned) {
     return {
       condition: 'HIGH_HEAT_INDEX',
       preferredModes: [...AIR_CONDITIONED_MODES],
-      message: 'High heat index. Prefer air-conditioned or enclosed vehicles.',
+      heatIndex,
+      message: `PAGASA ${heatIndex.label} heat index (${heatIndex.valueC}C). ${heatIndex.advisory} Prefer air-conditioned or enclosed vehicles.`,
     };
   }
 
   return {
     condition: 'NORMAL',
     preferredModes: DEFAULT_MODES,
-    message: 'Weather is acceptable. Prefer the fastest efficient route.',
+    heatIndex,
+    message:
+      heatIndex.category === 'CAUTION'
+        ? `PAGASA Caution heat index (${heatIndex.valueC}C). ${heatIndex.advisory} Prefer the fastest efficient route.`
+        : 'Weather is acceptable. Prefer the fastest efficient route.',
   };
 }
 
@@ -254,7 +261,7 @@ function getWeatherPenalty(mode, weather, policy) {
   }
 
   if (policy.condition === 'HIGH_HEAT_INDEX' && EXPOSED_MODES.has(mode)) {
-    return 25 * 60 + Math.max(0, Number(weather.apparentTemperatureC ?? 32) - 32) * 120;
+    return getHeatPenalty(policy.heatIndex, weather);
   }
 
   return 0;
@@ -270,6 +277,77 @@ function buildRecommendationReason(route, weather, policy, weatherPenalty) {
   }
 
   return `${modeLabel(route.mode)} is ranked by travel time and distance.`;
+}
+
+function classifyPagasaHeatIndex(value) {
+  const roundedValue = Number.isFinite(value) ? Math.round(value) : null;
+
+  if (roundedValue === null || roundedValue < 27) {
+    return {
+      category: 'NORMAL',
+      label: 'Normal',
+      valueC: roundedValue,
+      rangeC: '<27',
+      advisory: 'Heat index is below PAGASA Caution level.',
+      prefersAirConditioned: false,
+    };
+  }
+
+  if (roundedValue <= 32) {
+    return {
+      category: 'CAUTION',
+      label: 'Caution',
+      valueC: roundedValue,
+      rangeC: '27-32',
+      advisory: 'Fatigue is possible with prolonged exposure and activity.',
+      prefersAirConditioned: false,
+    };
+  }
+
+  if (roundedValue <= 41) {
+    return {
+      category: 'EXTREME_CAUTION',
+      label: 'Extreme Caution',
+      valueC: roundedValue,
+      rangeC: '33-41',
+      advisory: 'Heat cramps and heat exhaustion are possible with continued activity.',
+      prefersAirConditioned: true,
+    };
+  }
+
+  if (roundedValue <= 51) {
+    return {
+      category: 'DANGER',
+      label: 'Danger',
+      valueC: roundedValue,
+      rangeC: '42-51',
+      advisory: 'Heat cramps and heat exhaustion are likely; heat stroke is possible with continued exposure.',
+      prefersAirConditioned: true,
+    };
+  }
+
+  return {
+    category: 'EXTREME_DANGER',
+    label: 'Extreme Danger',
+    valueC: roundedValue,
+    rangeC: '52+',
+    advisory: 'Heat stroke is highly likely and should be treated as a medical emergency.',
+    prefersAirConditioned: true,
+  };
+}
+
+function getHeatPenalty(heatIndex, weather) {
+  const feelsLike = Number(weather.apparentTemperatureC ?? heatIndex?.valueC ?? 33);
+
+  if (heatIndex?.category === 'EXTREME_DANGER') {
+    return 90 * 60 + Math.max(0, feelsLike - 52) * 240;
+  }
+
+  if (heatIndex?.category === 'DANGER') {
+    return 45 * 60 + Math.max(0, feelsLike - 42) * 180;
+  }
+
+  return 25 * 60 + Math.max(0, feelsLike - 33) * 120;
 }
 
 function toGoogleWaypoint(value) {

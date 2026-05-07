@@ -1,4 +1,4 @@
-# Lagging-On-My-Laptop
+git add README.md backend/README.md backend/commuteService.js frontend/script.js# Lagging-On-My-Laptop
 
 Weather-aware commute routing app for Dev Week 2026.
 
@@ -6,7 +6,7 @@ Weather-aware commute routing app for Dev Week 2026.
 
 RouteCast helps commuters choose a better route based on both travel time and current weather conditions.
 
-Users enter a starting location, destination, and preferred travel modes. The app checks route options with Google Routes and checks local weather with Open-Meteo. If rain risk is high, it prefers enclosed vehicles. If the heat index is high, it prefers air-conditioned or enclosed transport. Otherwise, it recommends the fastest efficient route.
+Users enter a starting location, destination, and preferred travel modes. The app checks route options with Google Routes and checks local weather with Open-Meteo. If rain risk is high, it prefers enclosed vehicles. If the heat index reaches PAGASA Extreme Caution, Danger, or Extreme Danger, it prefers air-conditioned or enclosed transport. Otherwise, it recommends the fastest efficient route.
 
 This project is for daily commuters, students, workers, and hackathon users who want route suggestions that react to practical weather conditions, not just distance and time.
 
@@ -263,6 +263,12 @@ Optional exact weather location:
 ## Notes
 
 - Do not commit `.env` or API keys.
+- Heat index classification follows PAGASA levels: Caution (27-32C), Extreme Caution (33-41C), Danger (42-51C), and Extreme Danger (52C and above).
 - Open-Meteo does not require an API key for this usage.
 - If Google Maps says the page did not load correctly, check the Browser Maps Key website restrictions and enabled APIs.
 - If route recommendations fail, check the backend JSON error details from `POST /api/commute-routes`.
+
+## References
+
+- PAGASA Heat Index: https://www.pagasa.dost.gov.ph/weather/heat-index
+- PAGASA heat index monitoring system statement: https://bagong.pagasa.dost.gov.ph/press-release/155

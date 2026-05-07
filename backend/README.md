@@ -87,8 +87,13 @@ Response includes:
   },
   "policy": {
     "condition": "HIGH_HEAT_INDEX",
+    "heatIndex": {
+      "category": "EXTREME_CAUTION",
+      "label": "Extreme Caution",
+      "rangeC": "33-41"
+    },
     "preferredModes": ["DRIVE", "TRANSIT"],
-    "message": "High heat index. Prefer air-conditioned or enclosed vehicles."
+    "message": "PAGASA Extreme Caution heat index (33C). Heat cramps and heat exhaustion are possible with continued activity. Prefer air-conditioned or enclosed vehicles."
   }
 }
 ```
@@ -96,8 +101,16 @@ Response includes:
 ## Weather Rules
 
 - Precipitation probability >= 55% or active precipitation: prefer enclosed vehicles.
-- Apparent temperature >= 32C: prefer air-conditioned or enclosed vehicles.
+- PAGASA Caution heat index, 27-32C: report caution, but still rank by fastest efficient route.
+- PAGASA Extreme Caution heat index, 33-41C: prefer air-conditioned or enclosed vehicles.
+- PAGASA Danger heat index, 42-51C: strongly prefer air-conditioned or enclosed vehicles.
+- PAGASA Extreme Danger heat index, 52C and above: heavily penalize exposed modes and prefer air-conditioned or enclosed vehicles.
 - Otherwise: rank by fastest efficient route.
+
+References:
+
+- PAGASA Heat Index: https://www.pagasa.dost.gov.ph/weather/heat-index
+- PAGASA heat index monitoring system statement: https://bagong.pagasa.dost.gov.ph/press-release/155
 
 ## Deployment
 

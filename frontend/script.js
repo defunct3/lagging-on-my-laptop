@@ -307,7 +307,10 @@ function initApp() {
                 policyBadgeEl.textContent = 'RAIN ALERT';
                 policyBadgeEl.classList.add('policy-rain');
             } else if (policy.condition === 'HIGH_HEAT_INDEX') {
-                policyBadgeEl.textContent = 'HEAT ALERT';
+                policyBadgeEl.textContent = policy.heatIndex?.label ? `PAGASA ${policy.heatIndex.label}` : 'HEAT ALERT';
+                policyBadgeEl.classList.add('policy-heat');
+            } else if (policy.heatIndex?.category === 'CAUTION') {
+                policyBadgeEl.textContent = 'PAGASA CAUTION';
                 policyBadgeEl.classList.add('policy-heat');
             } else {
                 policyBadgeEl.textContent = 'NORMAL';
