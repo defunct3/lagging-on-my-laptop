@@ -237,6 +237,14 @@ SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
 
 The service role key belongs only in Elastic Beanstalk. Do not put it in Vercel or frontend code.
 
+`SUPABASE_URL` should be the base project URL:
+
+```text
+https://your-project-ref.supabase.co
+```
+
+Do not use the Supabase dashboard URL.
+
 ## Backend Endpoints
 
 Health check:

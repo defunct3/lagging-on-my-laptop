@@ -45,7 +45,7 @@ export async function listTripPlans(config, limit = 20) {
 }
 
 async function supabaseFetch(config, path, options = {}) {
-  const response = await fetch(`${config.supabaseUrl}${path}`, {
+  const response = await fetch(`${getSupabaseBaseUrl(config.supabaseUrl)}${path}`, {
     ...options,
     headers: {
       apikey: config.supabaseServiceRoleKey,
@@ -67,4 +67,11 @@ function ensureSupabase(config) {
   if (!isSupabaseConfigured(config)) {
     throw new ApiError(500, 'Supabase is not configured.');
   }
+}
+
+function getSupabaseBaseUrl(url) {
+  return String(url)
+    .trim()
+    .replace(/\/+$/, '')
+    .replace(/\/rest\/v1$/i, '');
 }

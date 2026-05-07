@@ -33,6 +33,14 @@ SUPABASE_SERVICE_ROLE_KEY=Supabase service role key
 CORS_ORIGIN=https://devweek2026-git-main-priensmaggis-projects.vercel.app
 ```
 
+Use the base project URL for `SUPABASE_URL`, for example:
+
+```text
+https://your-project-ref.supabase.co
+```
+
+Do not use the dashboard URL. If you copied a REST endpoint ending in `/rest/v1`, the backend will normalize it, but the base project URL is preferred.
+
 ## Endpoints
 
 ### `GET /api/health`
