@@ -177,6 +177,8 @@ Required Elastic Beanstalk environment properties:
 ```env
 GOOGLE_ROUTES_API_KEY=your_server_routes_key
 GOOGLE_MAPS_BROWSER_API_KEY=your_browser_maps_key
+SUPABASE_URL=your_supabase_project_url
+SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
 CORS_ORIGIN=https://devweek2026-git-main-priensmaggis-projects.vercel.app
 ```
 
@@ -207,6 +209,34 @@ API restrictions: Maps JavaScript API, Places API
 
 The browser Maps key is returned by `GET /api/maps-key` so the frontend can load Google Maps JavaScript. The Routes key must never be exposed to frontend code.
 
+## Supabase Setup
+
+Create a Supabase project, then run this SQL in the Supabase SQL editor:
+
+```sql
+create table if not exists public.trip_plans (
+  id uuid primary key default gen_random_uuid(),
+  origin text not null,
+  destination text not null,
+  modes text[] not null default '{}',
+  recommendation jsonb not null,
+  alternatives jsonb not null default '[]'::jsonb,
+  weather jsonb,
+  policy jsonb,
+  metadata jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now()
+);
+```
+
+Add these Elastic Beanstalk environment properties:
+
+```env
+SUPABASE_URL=your_supabase_project_url
+SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
+```
+
+The service role key belongs only in Elastic Beanstalk. Do not put it in Vercel or frontend code.
+
 ## Backend Endpoints
 
 Health check:
@@ -230,6 +260,13 @@ Browser map key:
 
 ```http
 GET /api/maps-key
+```
+
+Trip history:
+
+```http
+GET /api/trip-plans?limit=20
+POST /api/trip-plans
 ```
 
 Route recommendation:

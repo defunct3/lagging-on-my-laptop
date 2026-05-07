@@ -200,6 +200,7 @@ function initApp() {
             const data = await response.json();
             lastApiResponse = data;
             handleRouteResponse(data, null);
+            saveTripPlan({ origin, destination, modes: getSelectedModes(), routeData: data });
 
         } catch (err) {
             console.error('Route fetch failed:', err);
@@ -257,6 +258,27 @@ function initApp() {
         routeWarningEl.style.display = 'flex';
         routeResult.classList.remove('hidden');
         alternativesPanel.classList.add('hidden');
+    }
+
+    async function saveTripPlan({ origin, destination, modes, routeData }) {
+        try {
+            await fetch(`${API_BASE_URL}/api/trip-plans`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    origin,
+                    destination,
+                    modes,
+                    recommendation: routeData.recommendation,
+                    alternatives: routeData.alternatives,
+                    weather: routeData.weather,
+                    policy: routeData.policy,
+                    metadata: { requestedAt: routeData.requestedAt },
+                }),
+            });
+        } catch (err) {
+            console.warn('Trip plan was not saved:', err);
+        }
     }
 
     // === Alternatives Panel ===

@@ -9,6 +9,8 @@ PowerShell:
 ```powershell
 $env:GOOGLE_ROUTES_API_KEY="your_server_routes_key"
 $env:GOOGLE_MAPS_BROWSER_API_KEY="your_browser_maps_key"
+$env:SUPABASE_URL="your_supabase_project_url"
+$env:SUPABASE_SERVICE_ROLE_KEY="your_supabase_service_role_key"
 $env:CORS_ORIGIN="*"
 npm start
 ```
@@ -26,6 +28,8 @@ Set `PORT` to change the port.
 ```env
 GOOGLE_ROUTES_API_KEY=server key restricted to Routes API
 GOOGLE_MAPS_BROWSER_API_KEY=browser key restricted to Maps JavaScript API and Places API
+SUPABASE_URL=Supabase project URL
+SUPABASE_SERVICE_ROLE_KEY=Supabase service role key
 CORS_ORIGIN=https://devweek2026-git-main-priensmaggis-projects.vercel.app
 ```
 
@@ -97,6 +101,51 @@ Response includes:
   }
 }
 ```
+
+### `GET /api/trip-plans`
+
+Returns recent saved trip plans from Supabase.
+
+```http
+GET /api/trip-plans?limit=20
+```
+
+### `POST /api/trip-plans`
+
+Saves a trip plan to Supabase.
+
+```json
+{
+  "origin": "SM City Cebu, Cebu City",
+  "destination": "Ayala Center Cebu",
+  "modes": ["DRIVE", "WALK"],
+  "recommendation": {},
+  "alternatives": [],
+  "weather": {},
+  "policy": {}
+}
+```
+
+## Supabase Table
+
+Create this table in the Supabase SQL editor:
+
+```sql
+create table if not exists public.trip_plans (
+  id uuid primary key default gen_random_uuid(),
+  origin text not null,
+  destination text not null,
+  modes text[] not null default '{}',
+  recommendation jsonb not null,
+  alternatives jsonb not null default '[]'::jsonb,
+  weather jsonb,
+  policy jsonb,
+  metadata jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now()
+);
+```
+
+The backend uses the Supabase service role key, so do not expose that key in frontend code.
 
 ## Weather Rules
 

@@ -1,14 +1,18 @@
 import http from 'node:http';
 import { ApiError, recommendCommuteRoute } from './commuteService.js';
+import { isSupabaseConfigured, listTripPlans, saveTripPlan } from './supabaseService.js';
 
 const PORT = Number(process.env.PORT ?? 3001);
 const config = {
   googleRoutesApiKey: process.env.GOOGLE_ROUTES_API_KEY,
   googleMapsBrowserApiKey: process.env.GOOGLE_MAPS_BROWSER_API_KEY,
+  supabaseUrl: process.env.SUPABASE_URL,
+  supabaseServiceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY,
 };
 
 const server = http.createServer(async (req, res) => {
   setCorsHeaders(res);
+  const url = new URL(req.url, `http://${req.headers.host ?? 'localhost'}`);
 
   if (req.method === 'OPTIONS') {
     res.writeHead(204);
@@ -17,17 +21,18 @@ const server = http.createServer(async (req, res) => {
   }
 
   try {
-    if (req.method === 'GET' && req.url === '/api/health') {
+    if (req.method === 'GET' && url.pathname === '/api/health') {
       sendJson(res, 200, {
         ok: true,
         service: 'weather-aware-commute-api',
         googleRoutesConfigured: Boolean(config.googleRoutesApiKey),
         googleMapsBrowserConfigured: Boolean(config.googleMapsBrowserApiKey),
+        supabaseConfigured: isSupabaseConfigured(config),
       });
       return;
     }
 
-    if (req.method === 'GET' && req.url === '/api/maps-key') {
+    if (req.method === 'GET' && url.pathname === '/api/maps-key') {
       if (!config.googleMapsBrowserApiKey) {
         sendJson(res, 500, { error: 'Google Maps API key is not configured.' });
         return;
@@ -36,10 +41,23 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
-    if (req.method === 'POST' && req.url === '/api/commute-routes') {
+    if (req.method === 'POST' && url.pathname === '/api/commute-routes') {
       const body = await readJsonBody(req);
       const result = await recommendCommuteRoute(body, config);
       sendJson(res, 200, result);
+      return;
+    }
+
+    if (req.method === 'GET' && url.pathname === '/api/trip-plans') {
+      const result = await listTripPlans(config, url.searchParams.get('limit'));
+      sendJson(res, 200, { tripPlans: result });
+      return;
+    }
+
+    if (req.method === 'POST' && url.pathname === '/api/trip-plans') {
+      const body = await readJsonBody(req);
+      const result = await saveTripPlan(body, config);
+      sendJson(res, 201, { tripPlan: result });
       return;
     }
 
