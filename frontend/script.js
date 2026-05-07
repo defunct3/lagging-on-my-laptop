@@ -53,6 +53,7 @@ function initApp() {
     const menuToggleBtn = document.getElementById('menu-toggle');
     const dropdownMenu = document.getElementById('dropdown-menu');
     const logoutBtn = document.getElementById('logout-btn');
+    const logoutBtnHeader = document.getElementById('logout-btn-header');
     const findRouteBtn = document.getElementById('find-route-btn');
     const routeResult = document.getElementById('route-result');
     const startLocationInput = document.getElementById('start-location');
@@ -155,12 +156,15 @@ function initApp() {
     });
 
     // === Logout ===
-    logoutBtn.addEventListener('click', () => {
+    const logout = () => {
         appView.classList.add('hidden');
         landingView.classList.remove('hidden');
         document.body.style.overflow = 'auto';
         window.scrollTo(0, 0);
-    });
+    };
+
+    logoutBtn.addEventListener('click', logout);
+    logoutBtnHeader?.addEventListener('click', logout);
 
     refreshTripsBtn?.addEventListener('click', loadTripHistory);
 
